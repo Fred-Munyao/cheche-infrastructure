@@ -1,0 +1,17 @@
+# Terraform provider binaries — auto-generated, never commit
+.terraform/
+.terraform.lock.hcl
+
+# State files — contain sensitive data
+*.tfstate
+*.tfstate.backup
+
+# Variable files with secrets
+*.tfvars
+*.tfvars.json
+
+# Crash logs
+crash.log
+
+# IDE
+.vscode/
