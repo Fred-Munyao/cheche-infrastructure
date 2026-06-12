@@ -15,3 +15,9 @@ variable "aws_region" {
   type        = string
   default     = "us-east-1"
 }
+
+variable "owner" {
+  description = "Owner of this infrastructure"
+  type        = string
+  default     = "Fredrick Wambua — Cheche Technologies"
+}
