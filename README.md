@@ -43,6 +43,9 @@ Lambda (cheche-excel-formatter)
 | Lambda | `cheche-excel-formatter` | Excel formatter |
 | API Gateway | `vtfoxobw6l` | REST API, prod stage |
 | IAM Role | `cheche-lambda-role` | Lambda execution role |
+| DynamoDB | `cheche-payments` | Payment tracking, PAY_PER_REQUEST |
+| Lambda (payments) | `cheche-payment-callback` | STK Push handler, 256MB, 30s |
+| API Gateway (payments) | `jkv6ay89l0` | /stkpush, /callback, /status |
 
 ## Terraform Files
 
@@ -111,10 +114,14 @@ aws cloudfront create-invalidation `
 | Jun 16 2026 | Pillow fix, Fuliza separation, converter redesign |
 | Jun 16 2026 | Lambda upgraded to 1024MB/120s |
 | Jun 16 2026 | 10,000 transaction stress test passed (2-year statement) |
+| Jun 16 2026 | M-Pesa STK Push payment infrastructure deployed (sandbox tested) |
+| Jun 16 2026 | Paywall modal built — Free/PAYG/Pro/Business tiers |
 
 ## Next Steps
 
-- [ ] M-Pesa STK Push integration (Daraja API) — Pro/Business monetisation
+- [x] M-Pesa STK Push integration (Daraja API) — sandbox tested
+- [ ] Paybill shortcode (pending application)
+- [ ] Daraja Go Live (after Paybill approval)
 - [ ] S3 pre-signed URL upload for large files (>5MB)
 - [ ] AWS Cognito auth (phone OTP)
 - [ ] DynamoDB usage tracking + free tier enforcement
