@@ -12,10 +12,8 @@ resource "aws_dynamodb_table" "cheche_payments" {
     type = "S"
   }
 
-  ttl {
-    attribute_name = "ttl"
-    enabled        = true
-  }
+  # No TTL — all records (pending/failed/paid) retained for reconciliation,
+  # customer behaviour analysis, and accounting/tax purposes.
 
   tags = {
     Project     = "cheche-converter"
