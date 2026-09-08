@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars (gitignored) and fill in. Never commit the real file.
+daraja_consumer_key    = ""
+daraja_consumer_secret = ""
+daraja_shortcode       = ""          # sandbox: 174379 / production: your Paybill
+daraja_passkey         = ""
+daraja_env             = "sandbox"   # switch to "production" on go-live

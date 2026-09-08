@@ -21,37 +21,39 @@ variable "environment" {
 }
 
 # ── Daraja / M-Pesa ──
-# Store sensitive values in terraform.tfvars (gitignored) or AWS Secrets Manager
+# No defaults on purpose: values come from terraform.tfvars (gitignored) or TF_VAR_* env vars.
+# A missing value fails at plan time rather than shipping blank credentials to the Lambda.
 
 variable "daraja_consumer_key" {
   description = "Daraja API Consumer Key"
   type        = string
   sensitive   = true
-  default     = ""
 }
 
 variable "daraja_consumer_secret" {
   description = "Daraja API Consumer Secret"
   type        = string
   sensitive   = true
-  default     = ""
 }
 
 variable "daraja_shortcode" {
-  description = "M-Pesa Paybill shortcode"
+  description = "M-Pesa Paybill shortcode (sandbox: 174379)"
   type        = string
-  default     = "174379" # sandbox default
 }
 
 variable "daraja_passkey" {
   description = "Daraja Lipa Na M-Pesa passkey"
   type        = string
   sensitive   = true
-  default     = ""
 }
 
 variable "daraja_env" {
   description = "Daraja environment: sandbox or production"
   type        = string
-  default     = "sandbox"
+  default     = "production"
+
+  validation {
+    condition     = contains(["sandbox", "production"], var.daraja_env)
+    error_message = "daraja_env must be \"sandbox\" or \"production\"."
+  }
 }
