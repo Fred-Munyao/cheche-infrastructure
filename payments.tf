@@ -12,8 +12,32 @@ resource "aws_dynamodb_table" "cheche_payments" {
     type = "S"
   }
 
-  # No TTL — all records (pending/failed/paid) retained for reconciliation,
-  # customer behaviour analysis, and accounting/tax purposes.
+  attribute {
+    name = "phone"
+    type = "S"
+  }
+
+  attribute {
+    name = "created_at"
+    type = "N"
+  }
+
+  # All payments from one MSISDN, newest first
+  global_secondary_index {
+    name            = "phone-index"
+    hash_key        = "phone"
+    range_key       = "created_at"
+    projection_type = "ALL"
+  }
+
+  # Per-item retention, set by the Lambda:
+  #   PENDING / FAILED  -> ttl = created_at + 30 days (attempt never became a sale)
+  #   PAID              -> ttl attribute removed on confirmation (kept indefinitely
+  #                        for reconciliation, accounting and tax)
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
 
   tags = {
     Project     = "cheche-converter"
@@ -23,12 +47,33 @@ resource "aws_dynamodb_table" "cheche_payments" {
 }
 
 # ──────────────────────────────────────────────
-# IAM — DynamoDB access for Lambda role
+# IAM — table-scoped DynamoDB access for Lambda role
 # ──────────────────────────────────────────────
 
-resource "aws_iam_role_policy_attachment" "lambda_dynamodb" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+resource "aws_iam_role_policy" "lambda_dynamodb" {
+  name = "cheche-lambda-dynamodb"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query",
+        ]
+        Resource = [
+          aws_dynamodb_table.cheche_payments.arn,
+          "${aws_dynamodb_table.cheche_payments.arn}/index/*",
+          aws_dynamodb_table.cheche_analytics.arn,
+          "${aws_dynamodb_table.cheche_analytics.arn}/index/*",
+        ]
+      }
+    ]
+  })
 }
 
 # ──────────────────────────────────────────────
@@ -38,9 +83,10 @@ resource "aws_iam_role_policy_attachment" "lambda_dynamodb" {
 resource "aws_lambda_function" "payment_callback" {
   function_name = "cheche-payment-callback"
   role          = aws_iam_role.lambda_role.arn
-  handler       = "lambda_function.lambda_handler"
+  handler       = "cheche_callback_lambda.lambda_handler"
   runtime       = "python3.12"
-  filename      = "${path.module}/cheche_callback.zip"
+  filename         = "${path.module}/cheche_callback.zip"
+  source_code_hash = filebase64sha256("${path.module}/cheche_callback.zip")
 
   memory_size = 256
   timeout     = 30
@@ -53,8 +99,12 @@ resource "aws_lambda_function" "payment_callback" {
       DARAJA_PASSKEY         = var.daraja_passkey
       DARAJA_ENV             = var.daraja_env
       DARAJA_CALLBACK_URL    = "https://${aws_api_gateway_rest_api.payments_api.id}.execute-api.${var.aws_region}.amazonaws.com/prod/callback"
+      PAYMENTS_TABLE         = aws_dynamodb_table.cheche_payments.name
+      ANALYTICS_TABLE        = aws_dynamodb_table.cheche_analytics.name
     }
   }
+
+  depends_on = [aws_iam_role_policy.lambda_dynamodb]
 
   tags = {
     Project     = "cheche-converter"
@@ -199,7 +249,19 @@ resource "aws_api_gateway_deployment" "payments_prod" {
     aws_api_gateway_integration.callback_post,
     aws_api_gateway_integration.status_get,
     aws_api_gateway_integration.status_options,
+    aws_api_gateway_integration.track_post,
+    aws_api_gateway_integration.track_options,
   ]
+
+  # Force a new deployment whenever the route set changes
+  triggers = {
+    redeploy = sha1(jsonencode([
+      aws_api_gateway_integration.stkpush_post.id,
+      aws_api_gateway_integration.callback_post.id,
+      aws_api_gateway_integration.status_get.id,
+      aws_api_gateway_integration.track_post.id,
+    ]))
+  }
 
   lifecycle {
     create_before_destroy = true

@@ -15,3 +15,8 @@ crash.log
 
 # IDE
 .vscode/
+terraform.tfvars
+*.tfvars
+*.zip
+.terraform/
+*.tfstate*
