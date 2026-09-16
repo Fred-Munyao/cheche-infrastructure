@@ -12,7 +12,7 @@ User Browser
     ├── PDF extraction (client-side, PDF.js)
     │
     ▼
-CloudFront CDN (EYD38S1N9UN3R)
+CloudFront CDN
     │
     ├── /index.html        → Landing page
     └── /converter.html    → M-Pesa Converter App
@@ -39,9 +39,9 @@ Lambda (cheche-excel-formatter)
 | Resource | Name | Notes |
 |---|---|---|
 | S3 Bucket | `cheche-converter-app-dev` | Static site hosting |
-| CloudFront | `EYD38S1N9UN3R` | CDN + HTTPS |
+| CloudFront | `**********` | CDN + HTTPS |
 | Lambda | `cheche-excel-formatter` | Excel formatter |
-| API Gateway | `vtfoxobw6l` | REST API, prod stage |
+| API Gateway | `********` | REST API, prod stage |
 | IAM Role | `cheche-lambda-role` | Lambda execution role |
 | DynamoDB | `cheche-payments` | Payment tracking, PAY_PER_REQUEST |
 | Lambda (payments) | `cheche-payment-callback` | STK Push handler, 256MB, 30s |
