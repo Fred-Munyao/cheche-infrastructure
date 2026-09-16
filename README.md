@@ -114,12 +114,12 @@ aws cloudfront create-invalidation `
 | Jun 16 2026 | Pillow fix, Fuliza separation, converter redesign |
 | Jun 16 2026 | Lambda upgraded to 1024MB/120s |
 | Jun 16 2026 | 10,000 transaction stress test passed (2-year statement) |
-| Jun 16 2026 | M-Pesa STK Push payment infrastructure deployed (sandbox tested) |
+| Jun 16 2026 | M-Pesa STK Push payment infrastructure deployed  |
 | Jun 16 2026 | Paywall modal built — Free/PAYG/Pro/Business tiers |
 
 ## Next Steps
 
-- [x] M-Pesa STK Push integration (Daraja API) — sandbox tested
+- [x] M-Pesa STK Push integration (Daraja API)
 - [ ] Paybill shortcode (pending application)
 - [ ] Daraja Go Live (after Paybill approval)
 - [ ] S3 pre-signed URL upload for large files (>5MB)
