@@ -1,38 +1,36 @@
-# ──────────────────────────────────────────────
-# Outputs — Cheche Technologies Infrastructure
-# ──────────────────────────────────────────────
+# Outputs - aligned with the resources actually defined in this repo
 
 output "s3_bucket_name" {
-  description = "S3 bucket hosting the converter app"
-  value       = aws_s3_bucket.converter_app.bucket
+  description = "Static site bucket"
+  value       = aws_s3_bucket.cheche_app.bucket
 }
 
 output "cloudfront_distribution_id" {
-  description = "CloudFront distribution ID"
-  value       = aws_cloudfront_distribution.converter_cdn.id
+  description = "CloudFront distribution (use for invalidations)"
+  value       = aws_cloudfront_distribution.cheche_cdn.id
 }
 
 output "cloudfront_domain" {
   description = "CloudFront domain name"
-  value       = aws_cloudfront_distribution.converter_cdn.domain_name
+  value       = aws_cloudfront_distribution.cheche_cdn.domain_name
 }
 
-output "lambda_function_name" {
-  description = "Lambda formatter function name"
-  value       = aws_lambda_function.excel_formatter.function_name
+output "formatter_api_id" {
+  description = "Formatter HTTP API (API Gateway v2)"
+  value       = aws_apigatewayv2_api.formatter_api.id
 }
 
-output "lambda_function_arn" {
-  description = "Lambda formatter function ARN"
-  value       = aws_lambda_function.excel_formatter.arn
+output "formatter_api_endpoint" {
+  description = "POST endpoint used by converter.html for the formatted workbook"
+  value       = "${aws_apigatewayv2_stage.prod.invoke_url}/format"
 }
 
-output "api_gateway_endpoint" {
-  description = "API Gateway endpoint for the formatter"
-  value       = "https://${aws_api_gateway_rest_api.formatter_api.id}.execute-api.${var.aws_region}.amazonaws.com/${aws_api_gateway_stage.prod.stage_name}/format"
+output "payments_api_id" {
+  description = "Payments REST API (API Gateway v1)"
+  value       = aws_api_gateway_rest_api.payments_api.id
 }
 
-output "api_gateway_id" {
-  description = "API Gateway REST API ID"
-  value       = aws_api_gateway_rest_api.formatter_api.id
+output "payments_api_endpoint" {
+  description = "Base URL for /stkpush, /status, /callback, /track"
+  value       = aws_api_gateway_stage.payments_prod.invoke_url
 }

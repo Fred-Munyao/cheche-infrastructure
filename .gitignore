@@ -1,6 +1,5 @@
 # Terraform provider binaries — auto-generated, never commit
 .terraform/
-.terraform.lock.hcl
 
 # State files — contain sensitive data
 *.tfstate
@@ -20,3 +19,9 @@ terraform.tfvars
 *.zip
 .terraform/
 *.tfstate*
+*.tfstate.*
+*.tfplan
+plan.txt
+import_ids.txt
+v2_ids.txt
+_pre_import_backup/

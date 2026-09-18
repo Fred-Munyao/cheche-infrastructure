@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# IAM Role for Lambda
+# IAM Role for Lambda (shared by both functions)
 # ──────────────────────────────────────────────
 
 resource "aws_iam_role" "lambda_role" {
@@ -54,113 +54,47 @@ resource "aws_lambda_function" "excel_formatter" {
 }
 
 # ──────────────────────────────────────────────
-# API Gateway — REST API
+# Formatter API — HTTP API (API Gateway v2)
+# Matches what is actually live: vtfoxobw6l, POST /format, stage prod, auto-deploy
 # ──────────────────────────────────────────────
 
-resource "aws_api_gateway_rest_api" "formatter_api" {
-  name        = "cheche-formatter-api"
-  description = "M-Pesa Excel Formatter API"
+resource "aws_apigatewayv2_api" "formatter_api" {
+  name          = "cheche-formatter-api"
+  protocol_type = "HTTP"
 
-  tags = {
-    Project     = "cheche-converter"
-    Environment = "prod"
-    ManagedBy   = "terraform"
+  cors_configuration {
+    allow_headers = ["content-type"]
+    allow_methods = ["POST", "OPTIONS"]
+    allow_origins = ["*"]
   }
 }
 
-resource "aws_api_gateway_resource" "format" {
-  rest_api_id = aws_api_gateway_rest_api.formatter_api.id
-  parent_id   = aws_api_gateway_rest_api.formatter_api.root_resource_id
-  path_part   = "format"
+resource "aws_apigatewayv2_integration" "formatter" {
+  api_id                 = aws_apigatewayv2_api.formatter_api.id
+  integration_type       = "AWS_PROXY"
+  integration_method     = "POST"
+  integration_uri        = aws_lambda_function.excel_formatter.arn
+  payload_format_version = "2.0"
+  timeout_milliseconds   = 30000   # HTTP API hard maximum — see note in runbook
 }
 
-# POST /format
-resource "aws_api_gateway_method" "post_format" {
-  rest_api_id   = aws_api_gateway_rest_api.formatter_api.id
-  resource_id   = aws_api_gateway_resource.format.id
-  http_method   = "POST"
-  authorization = "NONE"
+resource "aws_apigatewayv2_route" "post_format" {
+  api_id    = aws_apigatewayv2_api.formatter_api.id
+  route_key = "POST /format"
+  target    = "integrations/${aws_apigatewayv2_integration.formatter.id}"
 }
 
-resource "aws_api_gateway_integration" "lambda_integration" {
-  rest_api_id             = aws_api_gateway_rest_api.formatter_api.id
-  resource_id             = aws_api_gateway_resource.format.id
-  http_method             = aws_api_gateway_method.post_format.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.excel_formatter.invoke_arn
+resource "aws_apigatewayv2_stage" "prod" {
+  api_id      = aws_apigatewayv2_api.formatter_api.id
+  name        = "prod"
+  auto_deploy = true
 }
 
-# OPTIONS /format (CORS preflight)
-resource "aws_api_gateway_method" "options_format" {
-  rest_api_id   = aws_api_gateway_rest_api.formatter_api.id
-  resource_id   = aws_api_gateway_resource.format.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "options_integration" {
-  rest_api_id = aws_api_gateway_rest_api.formatter_api.id
-  resource_id = aws_api_gateway_resource.format.id
-  http_method = aws_api_gateway_method.options_format.http_method
-  type        = "MOCK"
-
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-resource "aws_api_gateway_method_response" "options_200" {
-  rest_api_id = aws_api_gateway_rest_api.formatter_api.id
-  resource_id = aws_api_gateway_resource.format.id
-  http_method = aws_api_gateway_method.options_format.http_method
-  status_code = "200"
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-}
-
-resource "aws_api_gateway_integration_response" "options_integration_response" {
-  rest_api_id = aws_api_gateway_rest_api.formatter_api.id
-  resource_id = aws_api_gateway_resource.format.id
-  http_method = aws_api_gateway_method.options_format.http_method
-  status_code = aws_api_gateway_method_response.options_200.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'"
-    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
-  }
-}
-
-# Deployment
-resource "aws_api_gateway_deployment" "prod" {
-  rest_api_id = aws_api_gateway_rest_api.formatter_api.id
-
-  depends_on = [
-    aws_api_gateway_integration.lambda_integration,
-    aws_api_gateway_integration.options_integration,
-  ]
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "aws_api_gateway_stage" "prod" {
-  deployment_id = aws_api_gateway_deployment.prod.id
-  rest_api_id   = aws_api_gateway_rest_api.formatter_api.id
-  stage_name    = "prod"
-}
-
-# Lambda permission for API Gateway
+# Statement ID matches the live permission, so it is imported, not replaced
 resource "aws_lambda_permission" "api_gateway" {
-  statement_id  = "AllowAPIGatewayInvoke"
+  statement_id  = "apigateway-invoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.excel_formatter.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.formatter_api.execution_arn}/*/*"
+  source_arn    = "${aws_apigatewayv2_api.formatter_api.execution_arn}/*"
 }

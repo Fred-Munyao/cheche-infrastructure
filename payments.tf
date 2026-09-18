@@ -83,7 +83,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
 resource "aws_lambda_function" "payment_callback" {
   function_name = "cheche-payment-callback"
   role          = aws_iam_role.lambda_role.arn
-  handler       = "cheche_callback_lambda.lambda_handler"
+  handler       = "lambda_function.lambda_handler"
   runtime       = "python3.12"
   filename         = "${path.module}/cheche_callback.zip"
   source_code_hash = filebase64sha256("${path.module}/cheche_callback.zip")
@@ -276,7 +276,7 @@ resource "aws_api_gateway_stage" "payments_prod" {
 
 # Lambda permission
 resource "aws_lambda_permission" "payments_api_gateway" {
-  statement_id  = "AllowPaymentsAPIGatewayInvoke"
+  statement_id  = "apigateway-invoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.payment_callback.function_name
   principal     = "apigateway.amazonaws.com"

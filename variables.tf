@@ -17,7 +17,7 @@ variable "owner" {
 variable "environment" {
   description = "Deployment environment"
   type        = string
-  default     = "prod"
+  default     = "dev"
 }
 
 # ── Daraja / M-Pesa ──
@@ -56,4 +56,10 @@ variable "daraja_env" {
     condition     = contains(["sandbox", "production"], var.daraja_env)
     error_message = "daraja_env must be \"sandbox\" or \"production\"."
   }
+}
+
+variable "project" {
+  description = "Project name prefix used in resource names"
+  type        = string
+  default     = "cheche"
 }
