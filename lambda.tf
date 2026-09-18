@@ -35,14 +35,19 @@ resource "aws_lambda_function" "excel_formatter" {
   role          = aws_iam_role.lambda_role.arn
   handler       = "lambda_function.lambda_handler"
   runtime       = "python3.12"
-  filename      = "${path.module}/lambda_function.zip"
+  filename      = "${path.module}/lambda_function.zip"   # built by build_formatter.ps1 from lambda/excel-formatter/
+  source_code_hash = filebase64sha256("${path.module}/lambda_function.zip")
 
   memory_size = 1024
   timeout     = 120
 
   environment {
     variables = {
-      ENVIRONMENT = "prod"
+      ENVIRONMENT               = "prod"
+      PAYMENTS_TABLE            = aws_dynamodb_table.cheche_payments.name
+      MAX_DOWNLOADS_PER_PAYMENT = "3"    # retries + filtered/unfiltered copy + re-download
+      DOWNLOAD_WINDOW_HOURS     = "24"
+      JOBS_BUCKET               = aws_s3_bucket.formatter_jobs.bucket
     }
   }
 
@@ -64,7 +69,7 @@ resource "aws_apigatewayv2_api" "formatter_api" {
 
   cors_configuration {
     allow_headers = ["content-type"]
-    allow_methods = ["POST", "OPTIONS"]
+    allow_methods = ["GET", "POST", "OPTIONS"]
     allow_origins = ["*"]
   }
 }
