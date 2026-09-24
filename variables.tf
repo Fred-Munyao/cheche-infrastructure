@@ -37,7 +37,7 @@ variable "daraja_consumer_secret" {
 }
 
 variable "daraja_shortcode" {
-  description = "M-Pesa Paybill shortcode (sandbox: 174379)"
+  description = "Daraja BusinessShortCode: Buy Goods HO/Store number, or Paybill number (sandbox: 174379)"
   type        = string
 }
 
@@ -62,4 +62,21 @@ variable "project" {
   description = "Project name prefix used in resource names"
   type        = string
   default     = "cheche"
+}
+
+variable "daraja_party_b" {
+  description = "STK Push PartyB: Buy Goods till number (production: 1749942). Leave empty for Paybill (defaults to the shortcode)"
+  type        = string
+  default     = ""
+}
+
+variable "daraja_txn_type" {
+  description = "STK Push TransactionType"
+  type        = string
+  default     = "CustomerBuyGoodsOnline"
+
+  validation {
+    condition     = contains(["CustomerBuyGoodsOnline", "CustomerPayBillOnline"], var.daraja_txn_type)
+    error_message = "daraja_txn_type must be \"CustomerBuyGoodsOnline\" or \"CustomerPayBillOnline\"."
+  }
 }

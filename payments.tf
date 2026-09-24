@@ -96,6 +96,8 @@ resource "aws_lambda_function" "payment_callback" {
       DARAJA_CONSUMER_KEY    = var.daraja_consumer_key
       DARAJA_CONSUMER_SECRET = var.daraja_consumer_secret
       DARAJA_SHORTCODE       = var.daraja_shortcode
+      DARAJA_PARTY_B         = var.daraja_party_b
+      DARAJA_TXN_TYPE        = var.daraja_txn_type
       DARAJA_PASSKEY         = var.daraja_passkey
       DARAJA_ENV             = var.daraja_env
       DARAJA_CALLBACK_URL    = "https://${aws_api_gateway_rest_api.payments_api.id}.execute-api.${var.aws_region}.amazonaws.com/prod/callback"
