@@ -25,3 +25,6 @@ plan.txt
 import_ids.txt
 v2_ids.txt
 _pre_import_backup/
+
+# payment exports contain customer phone numbers
+*.csv

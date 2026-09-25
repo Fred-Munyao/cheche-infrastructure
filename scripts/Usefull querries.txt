@@ -1,0 +1,25 @@
+Useful queries:
+
+Real sales only, with test records excluded:
+
+sql
+SELECT checkout_request_id, amount_paid, mpesa_receipt, paid_at, confirmed_via
+FROM "cheche-payments"
+WHERE status = 'PAID' AND environment IS MISSING
+
+Failed attempts and why they failed:
+
+sql
+SELECT checkout_request_id, created_at, fail_reason
+FROM "cheche-payments"
+WHERE status = 'FAILED'
+
+All payments from one phone number, for customer support:
+
+sql
+SELECT * FROM "cheche-payments" WHERE phone = '254722117885'
+
+Look up a specific receipt, if a customer says "I paid but got nothing":
+
+sql
+SELECT * FROM "cheche-payments" WHERE mpesa_receipt = 'UIOAD7UCH5'
