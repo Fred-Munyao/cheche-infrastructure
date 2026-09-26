@@ -23,6 +23,10 @@
     October, with a per-visitor CSV.
 
 .EXAMPLE
+    .\Get-ChecheFunnel.ps1 -Days 7 -ExcludePhone 254722117885 -Html
+    Last 7 days, plus a visual HTML report with daily and cumulative charts.
+
+.EXAMPLE
     .\Get-ChecheFunnel.ps1 -Days 7
     Last 7 days.
 #>
@@ -36,6 +40,8 @@ param(
     [string[]]$ExcludeClient = @(),        # specific anonymous client_ids to ignore
     [switch]$IncludeTestTraffic,
     [string]$OutFile,
+    [switch]$Html,                         # also write a visual HTML report (charts) and open it
+    [string]$HtmlFile,
     [string]$Region = 'us-east-1'
 )
 
@@ -272,3 +278,89 @@ if ($OutFile) {
     $visitors | Sort-Object 'First Seen (EAT)' | Export-Csv -Path $OutFile -NoTypeInformation -Encoding UTF8
     Write-Host ("Per-visitor detail written to {0}" -f $OutFile) -ForegroundColor Green
 }
+
+# ── Visual HTML report ──
+if ($Html -or $HtmlFile) {
+    Add-Type -AssemblyName System.Web
+    function Esc([string]$t) { [System.Web.HttpUtility]::HtmlEncode($t) }
+    $ColGreen='#007A3D'; $ColGold='#F4A51C'; $INK='#1A1A2E'; $GREY='#6B7280'
+
+    # daily series, zero-filled across the whole range
+    $dayList=@(); $d=$From.Date; while ($d -le $To.Date) { $dayList += $d.ToString('yyyy-MM-dd'); $d=$d.AddDays(1) }
+    $visByDay=@{}; foreach ($g in ($events | Group-Object { DayOf $_.Ts })) { $visByDay[$g.Name]=@($g.Group.Client | Sort-Object -Unique).Count }
+    $paidByDay=@{}; foreach ($p in $paidInRange) { $k=DayOf $p.Paid; $paidByDay[$k]=1+[int]$paidByDay[$k] }
+    $vis=@($dayList | ForEach-Object { [int]$visByDay[$_] }); $pay=@($dayList | ForEach-Object { [int]$paidByDay[$_] })
+    $cv=@(); $cp=@(); $a=0; $b=0; for ($i=0;$i -lt $dayList.Count;$i++){ $a+=$vis[$i]; $b+=$pay[$i]; $cv+=$a; $cp+=$b }
+    $labels=@($dayList | ForEach-Object { ([datetime]$_).ToString('d MMM') })
+    $step=[math]::Max(1,[math]::Ceiling($dayList.Count/12))
+
+    function Axis($W,$H,$L,$T,$R,$B,$max,$sb) {
+        $n=4; for ($i=0;$i -le $n;$i++){ $v=[math]::Round($max*$i/$n); $y=$T+($H-$T-$B)*(1-$i/$n)
+            [void]$sb.Append("<line x1='$L' y1='$y' x2='$($W-$R)' y2='$y' stroke='#E5E7EB'/><text x='$($L-8)' y='$($y+4)' font-size='11' text-anchor='end' fill='$GREY'>$v</text>") }
+    }
+    function Bars($a1,$a2,$n1,$n2) {
+        $W=900;$H=320;$L=44;$T=20;$R=16;$B=48; $max=[math]::Max(1,(($a1+$a2)|Measure-Object -Maximum).Maximum); $max=[math]::Max(4,[math]::Ceiling($max*1.1/4)*4)
+        $sb=New-Object System.Text.StringBuilder; [void]$sb.Append("<svg viewBox='0 0 $W $H' width='100%' role='img'>")
+        Axis $W $H $L $T $R $B $max $sb
+        $cw=($W-$L-$R)/$dayList.Count; $bw=[math]::Max(2,$cw*0.34)
+        for ($i=0;$i -lt $dayList.Count;$i++){ $x=$L+$i*$cw+$cw*0.14
+            foreach ($pair in @(@($a1[$i],$ColGreen,0),@($a2[$i],$ColGold,1))) { $barH=($H-$T-$B)*$pair[0]/$max; $y=$H-$B-$barH; $xx=$x+$pair[2]*($bw+2)
+                [void]$sb.Append("<rect x='$xx' y='$y' width='$bw' height='$barH' rx='2' fill='$($pair[1])'><title>$($labels[$i]): $($pair[0])</title></rect>") }
+            if ($i % $step -eq 0) { [void]$sb.Append("<text x='$($L+$i*$cw+$cw/2)' y='$($H-$B+18)' font-size='11' text-anchor='middle' fill='$GREY'>$($labels[$i])</text>") } }
+        [void]$sb.Append("</svg>"); $sb.ToString()
+    }
+    function Lines($a1,$a2) {
+        $W=900;$H=320;$L=44;$T=20;$R=16;$B=48; $max=[math]::Max(1,(($a1+$a2)|Measure-Object -Maximum).Maximum); $max=[math]::Max(4,[math]::Ceiling($max*1.1/4)*4)
+        $sb=New-Object System.Text.StringBuilder; [void]$sb.Append("<svg viewBox='0 0 $W $H' width='100%' role='img'>")
+        Axis $W $H $L $T $R $B $max $sb
+        $n=[math]::Max(1,$dayList.Count-1); $px={ param($i) $L+($W-$L-$R)*$i/$n }; $py={ param($v) $H-$B-($H-$T-$B)*$v/$max }
+        foreach ($ser in @(@($a1,$ColGreen),@($a2,$ColGold))) { $pts=@(); for ($i=0;$i -lt $dayList.Count;$i++){ $pts+=('{0:0.#},{1:0.#}' -f (& $px $i),(& $py $ser[0][$i])) }
+            [void]$sb.Append("<polyline points='$($pts -join ' ')' fill='none' stroke='$($ser[1])' stroke-width='3' stroke-linejoin='round'/>")
+            $last=$dayList.Count-1; [void]$sb.Append("<circle cx='$(& $px $last)' cy='$(& $py $ser[0][$last])' r='4' fill='$($ser[1])'/><text x='$((& $px $last)-6)' y='$((& $py $ser[0][$last])-9)' font-size='12' font-weight='700' text-anchor='end' fill='$($ser[1])'>$($ser[0][$last])</text>") }
+        for ($i=0;$i -lt $dayList.Count;$i+=$step){ [void]$sb.Append("<text x='$(& $px $i)' y='$($H-$B+18)' font-size='11' text-anchor='middle' fill='$GREY'>$($labels[$i])</text>") }
+        [void]$sb.Append("</svg>"); $sb.ToString()
+    }
+
+    $top2=[math]::Max(1,[int]$steps[0][1])
+    $funnel=($steps | ForEach-Object { $n=[int]$_[1]; $w=[math]::Max(1,[math]::Round(100*$n/$top2)); $pc=[math]::Round(100*$n/$top2)
+        "<div class='frow'><div class='flab'>$(Esc $_[0])</div><div class='fbar'><div style='width:$w%'></div></div><div class='fnum'>$n <span>$pc%</span></div></div>" }) -join "`n"
+    $devRows=($visitors | Group-Object Device | Sort-Object Count -Descending | ForEach-Object { $pd=@($_.Group | Where-Object Paid).Count; "<tr><td>$(Esc $_.Name)</td><td>$($_.Count)</td><td>$pd</td></tr>" }) -join ''
+    $srcRows=($visitors | Group-Object Source | Sort-Object Count -Descending | Select-Object -First 10 | ForEach-Object { $pd=@($_.Group | Where-Object Paid).Count; "<tr><td>$(Esc $_.Name)</td><td>$($_.Count)</td><td>$pd</td></tr>" }) -join ''
+    $conv = if ($top2) { [math]::Round(100*$paidInRange.Count/$top2,1) } else { 0 }
+    $gen=(Get-Date).ToString('yyyy-MM-dd HH:mm')
+    $rng="{0:d MMM yyyy} – {1:d MMM yyyy}" -f $From,$To
+    $css=@'
+*{box-sizing:border-box}body{margin:0;font-family:Segoe UI,Inter,Arial,sans-serif;background:#F6F7F4;color:#1A1A2E}
+header{background:#007A3D;color:#fff;padding:22px 28px}header h1{margin:0;font-size:22px}header p{margin:4px 0 0;opacity:.85;font-size:13px}
+main{max-width:980px;margin:0 auto;padding:22px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.kpi{background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:14px 16px}.kpi b{display:block;font-size:26px;color:#007A3D}.kpi span{font-size:12px;color:#6B7280}
+.card{background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:16px 18px;margin-bottom:18px}.card h2{font-size:15px;margin:0 0 10px}
+.legend{font-size:12px;color:#6B7280;margin-bottom:6px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 5px 0 12px;vertical-align:middle}
+.frow{display:grid;grid-template-columns:190px 1fr 90px;align-items:center;gap:10px;margin:6px 0;font-size:13px}
+.fbar{background:#EEF2EE;border-radius:6px;height:18px}.fbar div{background:#007A3D;height:100%;border-radius:6px}.fnum{font-weight:700}.fnum span{color:#6B7280;font-weight:400;font-size:12px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:6px 4px;border-bottom:1px solid #F0F0F0}th{color:#6B7280;font-weight:600}
+.note{font-size:12px;color:#6B7280}@media(max-width:700px){.kpis{grid-template-columns:1fr 1fr}.two{grid-template-columns:1fr}.frow{grid-template-columns:120px 1fr 70px}}
+'@
+    $page=@"
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cheche funnel report</title><style>$css</style></head><body>
+<header><h1>Cheche funnel report</h1><p>$rng (Nairobi time) · generated $gen</p></header><main>
+<div class="kpis">
+<div class="kpi"><b>$top2</b><span>Visitors</span></div>
+<div class="kpi"><b>$($paidInRange.Count)</b><span>Paying customers</span></div>
+<div class="kpi"><b>KES $('{0:N0}' -f $revenue)</b><span>Revenue</span></div>
+<div class="kpi"><b>$conv%</b><span>Visitor → paid</span></div></div>
+<div class="card"><h2>Daily visitors and paid customers</h2><div class="legend"><i style="background:$ColGreen"></i>Visitors<i style="background:$ColGold"></i>Paid</div>$(Bars $vis $pay)</div>
+<div class="card"><h2>Cumulative (running total)</h2><div class="legend"><i style="background:$ColGreen"></i>Visitors<i style="background:$ColGold"></i>Paying customers</div>$(Lines $cv $cp)</div>
+<div class="card"><h2>Funnel (unique visitors)</h2>$funnel</div>
+<div class="two"><div class="card"><h2>Devices</h2><table><tr><th>Device</th><th>Visitors</th><th>Paid</th></tr>$devRows</table></div>
+<div class="card"><h2>Traffic sources</h2><table><tr><th>Source</th><th>Visitors</th><th>Paid</th></tr>$srcRows</table></div></div>
+<p class="note">Excluded $($excluded.Count) test visitor id(s). Anonymous usage data only — no statement contents or phone numbers in this report.</p>
+</main></body></html>
+"@
+    if (-not $HtmlFile) { $HtmlFile = Join-Path (Get-Location) ("cheche-funnel_{0:yyyy-MM-dd}_{1:yyyy-MM-dd}.html" -f $From,$To) }
+    [System.IO.File]::WriteAllText($HtmlFile,$page,(New-Object System.Text.UTF8Encoding($false)))
+    Write-Host ("Visual report written to {0}" -f $HtmlFile) -ForegroundColor Green
+    try { Start-Process $HtmlFile } catch { }
+}
+

@@ -28,3 +28,5 @@ _pre_import_backup/
 
 # payment exports contain customer phone numbers
 *.csv
+
+cheche-funnel_*.html
